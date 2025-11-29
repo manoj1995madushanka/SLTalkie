@@ -13,6 +13,8 @@ import {
   DeviceEventEmitter,
   FlatList,
   Linking,
+  Modal,
+  Switch,
 } from 'react-native';
 
 interface Message {
@@ -30,6 +32,8 @@ const App = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [status, setStatus] = useState('Initializing...');
   const [messages, setMessages] = useState<Message[]>([]);
+  const [showSettings, setShowSettings] = useState(false);
+  const [runInBackground, setRunInBackground] = useState(false);
 
   useEffect(() => {
     requestPermissions();
@@ -58,6 +62,7 @@ const App = () => {
           PermissionsAndroid.PERMISSIONS.BLUETOOTH_ADVERTISE,
           PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
           PermissionsAndroid.PERMISSIONS.NEARBY_WIFI_DEVICES,
+          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
         ]);
 
         const allGranted = Object.values(granted).every(
@@ -80,9 +85,29 @@ const App = () => {
     try {
       setStatus('Starting P2P...');
       const nickName = "User-" + Math.floor(Math.random() * 1000);
-      await FloodCommsModule.startAdvertising(nickName);
-      await FloodCommsModule.startDiscovery();
-      setStatus('Ready (Broadcasting)');
+
+      // Wait a bit for service binding
+      setTimeout(async () => {
+        try {
+          await FloodCommsModule.startAdvertising(nickName);
+          await FloodCommsModule.startDiscovery();
+          setStatus('Ready (Broadcasting)');
+        } catch (e) {
+          console.error("Failed to start advertising/discovery", e);
+          setStatus('Retrying Service...');
+          // Retry once
+          setTimeout(async () => {
+            try {
+              await FloodCommsModule.startAdvertising(nickName);
+              await FloodCommsModule.startDiscovery();
+              setStatus('Ready (Broadcasting)');
+            } catch (e2) {
+              setStatus('Error starting service');
+            }
+          }, 2000);
+        }
+      }, 1000);
+
     } catch (e) {
       console.error(e);
       setStatus('Error starting service');
@@ -110,6 +135,11 @@ const App = () => {
   const openMaps = (lat: number, lon: number) => {
     const url = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
     Linking.openURL(url).catch(err => console.error('An error occurred', err));
+  };
+
+  const toggleBackgroundMode = (value: boolean) => {
+    setRunInBackground(value);
+    FloodCommsModule.setBackgroundMode(value);
   };
 
   const renderMessage = ({ item }: { item: Message }) => (
@@ -142,9 +172,12 @@ const App = () => {
       <StatusBar barStyle="light-content" backgroundColor="#1a1a1a" />
 
       <View style={styles.header}>
-        <Text style={styles.title}>FloodComms</Text>
-        <Text style={styles.status}>{status}</Text>
+        <Text style={styles.title}>SLTalkie</Text>
+        <TouchableOpacity onPress={() => setShowSettings(true)} style={styles.settingsButton}>
+          <Text style={styles.settingsButtonText}>⚙️</Text>
+        </TouchableOpacity>
       </View>
+      <Text style={styles.status}>{status}</Text>
 
       <View style={styles.content}>
         <View style={styles.circleContainer}>
@@ -178,6 +211,39 @@ const App = () => {
           }
         />
       </View>
+
+      <Modal
+        visible={showSettings}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowSettings(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Setup</Text>
+
+            <View style={styles.settingRow}>
+              <Text style={styles.settingLabel}>Run in Background</Text>
+              <Switch
+                value={runInBackground}
+                onValueChange={toggleBackgroundMode}
+                trackColor={{ false: "#767577", true: "#81b0ff" }}
+                thumbColor={runInBackground ? "#f5dd4b" : "#f4f3f4"}
+              />
+            </View>
+            <Text style={styles.settingDescription}>
+              Keep the app running and listening for messages even when closed.
+            </Text>
+
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setShowSettings(false)}
+            >
+              <Text style={styles.closeButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -189,6 +255,8 @@ const styles = StyleSheet.create({
   },
   header: {
     padding: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
     borderBottomWidth: 1,
     borderBottomColor: '#333',
@@ -198,10 +266,17 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#ffffff',
   },
+  settingsButton: {
+    padding: 10,
+  },
+  settingsButtonText: {
+    fontSize: 24,
+  },
   status: {
     marginTop: 5,
     fontSize: 14,
     color: '#aaaaaa',
+    textAlign: 'center',
   },
   content: {
     flex: 1,
@@ -217,6 +292,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 30,
+    marginTop: 20,
   },
   pttButton: {
     width: 220,
@@ -294,6 +370,52 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
   },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalContent: {
+    width: '80%',
+    backgroundColor: '#222',
+    borderRadius: 15,
+    padding: 20,
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 20,
+  },
+  settingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 10,
+  },
+  settingLabel: {
+    color: '#fff',
+    fontSize: 16,
+  },
+  settingDescription: {
+    color: '#aaa',
+    fontSize: 12,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  closeButton: {
+    backgroundColor: '#007AFF',
+    paddingVertical: 10,
+    paddingHorizontal: 30,
+    borderRadius: 20,
+  },
+  closeButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  }
 });
 
 export default App;

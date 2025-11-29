@@ -16,6 +16,13 @@
     <!-- Android 13+ permissions -->
     <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" />
 
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
     <application
       android:name=".MainApplication"
       android:label="@string/app_name"
@@ -36,5 +43,10 @@
             <category android:name="android.intent.category.LAUNCHER" />
         </intent-filter>
       </activity>
+      <service 
+          android:name=".FloodCommsService" 
+          android:enabled="true" 
+          android:exported="false"
+          android:foregroundServiceType="location|microphone|connectedDevice" />
     </application>
 </manifest>
